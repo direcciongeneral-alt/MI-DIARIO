@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Mi Día">
+<title>Mi Día — Hábitos y Pendientes</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface2: #293548;
+    --border: #334155;
+    --text: #f1f5f9;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --green: #22c55e;
+    --green-bg: #14532d;
+    --green-light: #dcfce7;
+    --red: #ef4444;
+    --red-bg: #450a0a;
+    --amber: #f59e0b;
+    --amber-bg: #451a03;
+    --blue: #3b82f6;
+    --blue-bg: #1e3a5f;
+    --purple: #a78bfa;
+    --purple-bg: #2e1065;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; padding-bottom: 80px; }
+
+  /* Header */
+  .header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 16px 20px 12px; position: sticky; top: 0; z-index: 100; }
+  .header-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+  .app-title { font-size: 18px; font-weight: 600; color: var(--text); }
+  .header-date { font-size: 13px; color: var(--text2); }
+  .header-stats { display: flex; gap: 16px; margin-top: 10px; }
+  .stat-pill { background: var(--surface2); border-radius: 20px; padding: 4px 12px; font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 5px; }
+  .stat-pill span { color: var(--text); font-weight: 600; }
+  .btn-icon { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text2); font-size: 16px; transition: background 0.15s; }
+  .btn-icon:hover { background: var(--border); }
+
+  /* Nav tabs */
+  .nav { display: flex; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .nav-tab { flex: 1; padding: 10px 4px; text-align: center; font-size: 12px; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .nav-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+  /* Content */
+  .content { padding: 0 16px; }
+
+  /* Section */
+  .section-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 0 8px; }
+  .section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text3); }
+  .section-count { font-size: 11px; color: var(--text3); }
+
+  /* Item row */
+  .item { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 8px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: all 0.15s; position: relative; overflow: hidden; }
+  .item:active { transform: scale(0.98); }
+  .item.done { border-color: var(--green-bg); background: #0d1f12; }
+  .item.done .item-name { text-decoration: line-through; color: var(--text3); }
+  .item.overdue { border-color: #7f1d1d; }
+
+  .check-circle { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+  .item.done .check-circle { background: var(--green); border-color: var(--green); }
+  .check-icon { color: #fff; font-size: 13px; display: none; }
+  .item.done .check-icon { display: block; }
+
+  .item-info { flex: 1; min-width: 0; }
+  .item-name { font-size: 15px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item-meta { font-size: 12px; color: var(--text3); margin-top: 2px; display: flex; align-items: center; gap: 8px; }
+
+  .streak-badge { display: inline-flex; align-items: center; gap: 3px; background: var(--amber-bg); color: var(--amber); border-radius: 20px; padding: 2px 8px; font-size: 11px; font-weight: 600; }
+  .cat-badge { display: inline-flex; align-items: center; border-radius: 20px; padding: 2px 8px; font-size: 11px; }
+  .cat-barrze { background: var(--blue-bg); color: var(--blue); }
+  .cat-constructora { background: var(--amber-bg); color: var(--amber); }
+  .cat-personal { background: var(--purple-bg); color: var(--purple); }
+  .cat-salud { background: var(--green-bg); color: var(--green); }
+
+  .due-badge { display: inline-flex; align-items: center; gap: 3px; border-radius: 20px; padding: 2px 8px; font-size: 11px; }
+  .due-ok { background: var(--blue-bg); color: var(--blue); }
+  .due-today { background: var(--amber-bg); color: var(--amber); }
+  .due-overdue { background: var(--red-bg); color: var(--red); }
+
+  .days-row { display: flex; gap: 4px; }
+  .day-dot { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 600; color: var(--text3); }
+  .day-dot.active-day { border-color: var(--blue); color: var(--blue); }
+  .day-dot.done-day { background: var(--green); border-color: var(--green); color: #fff; }
+
+  /* Progress bar */
+  .progress-bar { height: 3px; background: var(--surface2); border-radius: 2px; margin-top: 12px; }
+  .progress-fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.4s; }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 40px 20px; color: var(--text3); }
+  .empty-icon { font-size: 36px; margin-bottom: 8px; }
+  .empty-text { font-size: 14px; }
+
+  /* FAB */
+  .fab { position: fixed; bottom: 24px; right: 20px; width: 52px; height: 52px; border-radius: 50%; background: var(--blue); border: none; color: #fff; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 200; transition: transform 0.15s; }
+  .fab:active { transform: scale(0.93); }
+
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 300; align-items: flex-end; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: var(--radius) var(--radius) 0 0; padding: 24px 20px 32px; width: 100%; max-width: 480px; }
+  .modal-title { font-size: 17px; font-weight: 600; margin-bottom: 20px; }
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 12px; color: var(--text2); margin-bottom: 6px; display: block; }
+  .form-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 14px; color: var(--text); font-size: 15px; outline: none; }
+  .form-input:focus { border-color: var(--blue); }
+  select.form-input option { background: var(--surface2); }
+  .form-row { display: flex; gap: 10px; }
+  .form-row .form-group { flex: 1; }
+  .days-select { display: flex; gap: 6px; flex-wrap: wrap; }
+  .day-btn { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface2); color: var(--text2); font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .day-btn.selected { background: var(--blue); border-color: var(--blue); color: #fff; }
+  .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+  .btn-cancel { flex: 1; padding: 12px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: transparent; color: var(--text2); font-size: 15px; cursor: pointer; }
+  .btn-save { flex: 2; padding: 12px; border-radius: var(--radius-sm); border: none; background: var(--blue); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn-delete { padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--red-bg); background: transparent; color: var(--red); font-size: 15px; cursor: pointer; }
+
+  /* History view */
+  .history-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 20px; }
+  .hist-day-label { text-align: center; font-size: 9px; color: var(--text3); padding-bottom: 4px; }
+  .hist-cell { aspect-ratio: 1; border-radius: 4px; background: var(--surface2); }
+  .hist-cell.done { background: var(--green); }
+  .hist-cell.missed { background: #7f1d1d; }
+  .hist-cell.future { background: transparent; }
+
+  /* Swipe to delete hint */
+  .delete-btn { position: absolute; right: 0; top: 0; bottom: 0; width: 60px; background: var(--red-bg); display: flex; align-items: center; justify-content: center; color: var(--red); font-size: 13px; cursor: pointer; border-radius: 0 var(--radius) var(--radius) 0; opacity: 0; transition: opacity 0.2s; }
+  .item:hover .delete-btn { opacity: 1; }
+
+  /* Type toggle */
+  .type-toggle { display: flex; background: var(--surface2); border-radius: var(--radius-sm); padding: 3px; margin-bottom: 16px; }
+  .type-btn { flex: 1; padding: 8px; text-align: center; border-radius: 6px; font-size: 13px; color: var(--text2); cursor: pointer; transition: all 0.15s; }
+  .type-btn.active { background: var(--surface); color: var(--text); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div>
+      <div class="app-title">Mi día</div>
+      <div class="header-date" id="headerDate"></div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <div class="btn-icon" onclick="showView('history')" title="Historial">📊</div>
+      <div class="btn-icon" onclick="exportCSV()" title="Exportar CSV">⬇</div>
+    </div>
+  </div>
+  <div class="header-stats">
+    <div class="stat-pill">Hoy: <span id="statDone">0</span>/<span id="statTotal">0</span></div>
+    <div class="stat-pill">Racha max: <span id="statStreak">0</span> días</div>
+    <div class="progress-bar" style="flex:1;margin-top:0;align-self:center;">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+  </div>
+</div>
+
+<div class="nav">
+  <div class="nav-tab active" onclick="showView('today')" id="tab-today">Hoy</div>
+  <div class="nav-tab" onclick="showView('pendientes')" id="tab-pendientes">Pendientes</div>
+  <div class="nav-tab" onclick="showView('habitos')" id="tab-habitos">Hábitos</div>
+  <div class="nav-tab" onclick="showView('history')" id="tab-history">Historial</div>
+</div>
+
+<div class="content" id="mainContent"></div>
+
+<button class="fab" onclick="openAddModal()" aria-label="Agregar">+</button>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">Nuevo ítem</div>
+
+    <div class="type-toggle" id="typeToggle">
+      <div class="type-btn active" onclick="setModalType('habito-diario')" id="tbHabitoDiario">Hábito diario</div>
+      <div class="type-btn" onclick="setModalType('habito-semanal')" id="tbHabitoSemanal">Hábito semanal</div>
+      <div class="type-btn" onclick="setModalType('pendiente')" id="tbPendiente">Pendiente</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Nombre</label>
+      <input class="form-input" id="inputNombre" placeholder="Ej: Gym, Revisar correos...">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Categoría</label>
+      <select class="form-input" id="inputCategoria">
+        <option value="personal">Personal</option>
+        <option value="salud">Salud / Gym</option>
+        <option value="barrze">Grupo Barrze</option>
+        <option value="constructora">Constructora</option>
+      </select>
+    </div>
+
+    <!-- Días de la semana (hábito semanal) -->
+    <div class="form-group" id="groupDias" style="display:none;">
+      <label class="form-label">Días de la semana</label>
+      <div class="days-select">
+        <div class="day-btn" data-day="1" onclick="toggleDay(this)">L</div>
+        <div class="day-btn" data-day="2" onclick="toggleDay(this)">M</div>
+        <div class="day-btn" data-day="3" onclick="toggleDay(this)">X</div>
+        <div class="day-btn" data-day="4" onclick="toggleDay(this)">J</div>
+        <div class="day-btn" data-day="5" onclick="toggleDay(this)">V</div>
+        <div class="day-btn" data-day="6" onclick="toggleDay(this)">S</div>
+        <div class="day-btn" data-day="0" onclick="toggleDay(this)">D</div>
+      </div>
+    </div>
+
+    <!-- Fecha límite (pendiente) -->
+    <div class="form-group" id="groupFecha" style="display:none;">
+      <label class="form-label">Fecha límite</label>
+      <input class="form-input" type="date" id="inputFecha">
+    </div>
+
+    <div class="form-group" id="groupProyecto" style="display:none;">
+      <label class="form-label">Proyecto / contexto</label>
+      <input class="form-input" id="inputProyecto" placeholder="Ej: Ures-Menchaca, Vita Castilla...">
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-delete" id="btnDelete" style="display:none;" onclick="deleteItem()">Eliminar</button>
+      <button class="btn-save" onclick="saveItem()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DAYS_ES = ['D','L','M','X','J','V','S'];
+const DAYS_FULL = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+const MONTHS_ES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+let state = {
+  items: [],
+  logs: {},
+  currentView: 'today',
+  editingId: null,
+  modalType: 'habito-diario'
+};
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+function load() {
+  try { state.items = JSON.parse(localStorage.getItem('mdia_items') || '[]'); } catch(e) { state.items = []; }
+  try { state.logs = JSON.parse(localStorage.getItem('mdia_logs') || '{}'); } catch(e) { state.logs = {}; }
+}
+
+function save() {
+  localStorage.setItem('mdia_items', JSON.stringify(state.items));
+  localStorage.setItem('mdia_logs', JSON.stringify(state.logs));
+}
+
+function isItemActiveToday(item) {
+  const today = new Date();
+  const dow = today.getDay();
+  if (item.type === 'habito-diario') return true;
+  if (item.type === 'habito-semanal') return item.days && item.days.includes(dow);
+  if (item.type === 'pendiente') {
+    if (item.done) return false;
+    return true;
+  }
+  return false;
+}
+
+function isDoneToday(item) {
+  const t = todayStr();
+  const key = item.id + '_' + t;
+  return !!state.logs[key];
+}
+
+function toggleDone(id) {
+  const t = todayStr();
+  const key = id + '_' + t;
+  if (state.logs[key]) {
+    delete state.logs[key];
+  } else {
+    state.logs[key] = true;
+    const item = state.items.find(i => i.id === id);
+    if (item && item.type === 'pendiente') {
+      item.done = true;
+    }
+  }
+  save();
+  render();
+}
+
+function getStreak(item) {
+  if (item.type === 'pendiente') return 0;
+  let streak = 0;
+  const today = new Date();
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const dow = d.getDay();
+    if (item.type === 'habito-semanal' && item.days && !item.days.includes(dow)) continue;
+    const ds = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const key = item.id + '_' + ds;
+    if (state.logs[key]) { streak++; } else if (i > 0) { break; }
+  }
+  return streak;
+}
+
+function getMaxStreak() {
+  let max = 0;
+  state.items.filter(i => i.type !== 'pendiente').forEach(item => {
+    max = Math.max(max, getStreak(item));
+  });
+  return max;
+}
+
+function getDueLabel(fecha) {
+  if (!fecha) return null;
+  const today = todayStr();
+  if (fecha < today) return { label: 'Vencido', cls: 'due-overdue' };
+  if (fecha === today) return { label: 'Hoy', cls: 'due-today' };
+  const d = new Date(fecha + 'T00:00:00');
+  return { label: d.getDate()+'/'+(d.getMonth()+1), cls: 'due-ok' };
+}
+
+function catBadge(cat) {
+  if (!cat) return '';
+  const map = { barrze:'cat-barrze', constructora:'cat-constructora', personal:'cat-personal', salud:'cat-salud' };
+  const labels = { barrze:'Barrze', constructora:'Constructora', personal:'Personal', salud:'Salud' };
+  return `<span class="cat-badge ${map[cat]||''}">${labels[cat]||cat}</span>`;
+}
+
+function renderItem(item, showCat) {
+  const done = isDoneToday(item);
+  const streak = getStreak(item);
+  const due = item.type === 'pendiente' ? getDueLabel(item.fecha) : null;
+  const dow = new Date().getDay();
+  const dayLetters = ['D','L','M','X','J','V','S'];
+
+  let meta = '';
+  if (showCat) meta += catBadge(item.categoria);
+  if (item.type === 'habito-semanal' && item.days) {
+    meta += `<span style="display:inline-flex;gap:3px;margin-left:4px;">`;
+    item.days.sort().forEach(d => {
+      const isCurrent = d === dow;
+      meta += `<span class="day-dot${isCurrent?' active-day':''}${done?' done-day':''}">${dayLetters[d]}</span>`;
+    });
+    meta += `</span>`;
+  }
+  if (streak > 1) meta += `<span class="streak-badge">🔥 ${streak}</span>`;
+  if (due) meta += `<span class="due-badge ${due.cls}">${due.label}</span>`;
+  if (item.proyecto) meta += `<span style="color:var(--text3);font-size:11px;">${item.proyecto}</span>`;
+
+  return `<div class="item${done?' done':''}${item.type==='pendiente'&&item.fecha<todayStr()&&!done?' overdue':''}" 
+    onclick="toggleDone('${item.id}')" 
+    oncontextmenu="event.preventDefault();openEditModal('${item.id}')">
+    <div class="check-circle"><span class="check-icon">✓</span></div>
+    <div class="item-info">
+      <div class="item-name">${item.nombre}</div>
+      ${meta ? `<div class="item-meta">${meta}</div>` : ''}
+    </div>
+    <div class="delete-btn" onclick="event.stopPropagation();confirmDelete('${item.id}')">✕</div>
+  </div>`;
+}
+
+function renderToday() {
+  const diarios = state.items.filter(i => i.type === 'habito-diario');
+  const semanales = state.items.filter(i => i.type === 'habito-semanal' && isItemActiveToday(i));
+  const pendientes = state.items.filter(i => i.type === 'pendiente' && !i.done);
+
+  const totalToday = diarios.length + semanales.length + pendientes.length;
+  const doneToday = [...diarios,...semanales,...pendientes].filter(i => isDoneToday(i)).length;
+
+  document.getElementById('statDone').textContent = doneToday;
+  document.getElementById('statTotal').textContent = totalToday;
+  document.getElementById('statStreak').textContent = getMaxStreak();
+  const pct = totalToday > 0 ? Math.round((doneToday/totalToday)*100) : 0;
+  document.getElementById('progressFill').style.width = pct+'%';
+
+  let html = '';
+
+  if (diarios.length) {
+    const dCount = diarios.filter(i=>isDoneToday(i)).length;
+    html += `<div class="section-header"><span class="section-title">Hábitos diarios</span><span class="section-count">${dCount}/${diarios.length}</span></div>`;
+    diarios.forEach(i => html += renderItem(i, false));
+  }
+
+  if (semanales.length) {
+    const sCount = semanales.filter(i=>isDoneToday(i)).length;
+    html += `<div class="section-header"><span class="section-title">Hábitos de hoy</span><span class="section-count">${sCount}/${semanales.length}</span></div>`;
+    semanales.forEach(i => html += renderItem(i, false));
+  }
+
+  if (pendientes.length) {
+    const pCount = pendientes.filter(i=>isDoneToday(i)).length;
+    html += `<div class="section-header"><span class="section-title">Pendientes</span><span class="section-count">${pCount}/${pendientes.length}</span></div>`;
+    pendientes.sort((a,b)=>(a.fecha||'9999')>(b.fecha||'9999')?1:-1).forEach(i => html += renderItem(i, true));
+  }
+
+  if (!totalToday) {
+    html = `<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">Todo limpio. Agrega hábitos con el botón +</div></div>`;
+  }
+
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+function renderPendientes() {
+  const activos = state.items.filter(i => i.type === 'pendiente' && !i.done);
+  const completados = state.items.filter(i => i.type === 'pendiente' && i.done);
+
+  document.getElementById('statDone').textContent = completados.length;
+  document.getElementById('statTotal').textContent = state.items.filter(i=>i.type==='pendiente').length;
+  document.getElementById('statStreak').textContent = getMaxStreak();
+  document.getElementById('progressFill').style.width = '0%';
+
+  let html = '';
+
+  if (activos.length) {
+    html += `<div class="section-header"><span class="section-title">Pendientes activos</span><span class="section-count">${activos.length}</span></div>`;
+    activos.sort((a,b)=>(a.fecha||'9999')>(b.fecha||'9999')?1:-1).forEach(i => html += renderItem(i, true));
+  }
+
+  if (completados.length) {
+    html += `<div class="section-header"><span class="section-title">Completados</span><span class="section-count">${completados.length}</span></div>`;
+    completados.forEach(i => html += renderItem(i, true));
+  }
+
+  if (!state.items.filter(i=>i.type==='pendiente').length) {
+    html = `<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Sin pendientes. Agrega uno con +</div></div>`;
+  }
+
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+function renderHabitos() {
+  const diarios = state.items.filter(i => i.type === 'habito-diario');
+  const semanales = state.items.filter(i => i.type === 'habito-semanal');
+
+  let html = '';
+
+  if (diarios.length) {
+    html += `<div class="section-header"><span class="section-title">Hábitos diarios</span><span class="section-count">${diarios.length}</span></div>`;
+    diarios.forEach(i => html += renderItem(i, true));
+  }
+
+  if (semanales.length) {
+    html += `<div class="section-header"><span class="section-title">Hábitos semanales</span><span class="section-count">${semanales.length}</span></div>`;
+    semanales.forEach(i => html += renderItem(i, true));
+  }
+
+  if (!diarios.length && !semanales.length) {
+    html = `<div class="empty"><div class="empty-icon">🎯</div><div class="empty-text">Sin hábitos. Agrega uno con +</div></div>`;
+  }
+
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+function renderHistory() {
+  const habits = state.items.filter(i => i.type !== 'pendiente');
+  let html = '';
+
+  if (!habits.length) {
+    html = `<div class="empty"><div class="empty-icon">📊</div><div class="empty-text">Sin hábitos que mostrar.</div></div>`;
+    document.getElementById('mainContent').innerHTML = html;
+    return;
+  }
+
+  habits.forEach(item => {
+    const streak = getStreak(item);
+    html += `<div class="section-header"><span class="section-title">${item.nombre}</span>${streak>0?`<span class="streak-badge">🔥 ${streak} días</span>`:'<span class="section-count">sin racha</span>'}</div>`;
+    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px;">`;
+    html += `<div style="display:flex;gap:2px;margin-bottom:4px;">`;
+    ['D','L','M','X','J','V','S'].forEach(d => {
+      html += `<div style="flex:1;text-align:center;font-size:9px;color:var(--text3);">${d}</div>`;
+    });
+    html += `</div><div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">`;
+
+    const today = new Date();
+    const startDow = new Date(today);
+    startDow.setDate(today.getDate() - 27 - today.getDay());
+
+    for (let w = 0; w < 4; w++) {
+      for (let d = 0; d < 7; d++) {
+        const dd = new Date(startDow);
+        dd.setDate(startDow.getDate() + w*7 + d);
+        const ds = dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0')+'-'+String(dd.getDate()).padStart(2,'0');
+        const isActive = item.type === 'habito-diario' || (item.days && item.days.includes(dd.getDay()));
+        const isFuture = ds > todayStr();
+        const isDone = !!state.logs[item.id+'_'+ds];
+
+        let bg = 'var(--surface2)';
+        let opacity = '1';
+        if (isFuture) { bg = 'transparent'; opacity = '0.3'; }
+        else if (!isActive) { bg = 'var(--surface2)'; opacity = '0.3'; }
+        else if (isDone) bg = 'var(--green)';
+        else bg = '#7f1d1d';
+
+        html += `<div style="aspect-ratio:1;border-radius:3px;background:${bg};opacity:${opacity};"></div>`;
+      }
+    }
+    html += `</div></div>`;
+  });
+
+  document.getElementById('mainContent').innerHTML = html;
+}
+
+function render() {
+  switch(state.currentView) {
+    case 'today': renderToday(); break;
+    case 'pendientes': renderPendientes(); break;
+    case 'habitos': renderHabitos(); break;
+    case 'history': renderHistory(); break;
+  }
+}
+
+function showView(v) {
+  state.currentView = v;
+  ['today','pendientes','habitos','history'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('active', t === v);
+  });
+  render();
+}
+
+function setModalType(t) {
+  state.modalType = t;
+  ['habito-diario','habito-semanal','pendiente'].forEach(bt => {
+    const id = 'tb'+bt.split('-').map(w=>w[0].toUpperCase()+w.slice(1)).join('');
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('active', bt === t);
+  });
+  document.getElementById('groupDias').style.display = t === 'habito-semanal' ? 'block' : 'none';
+  document.getElementById('groupFecha').style.display = t === 'pendiente' ? 'block' : 'none';
+  document.getElementById('groupProyecto').style.display = t === 'pendiente' ? 'block' : 'none';
+}
+
+function toggleDay(el) {
+  el.classList.toggle('selected');
+}
+
+function openAddModal() {
+  state.editingId = null;
+  document.getElementById('modalTitle').textContent = 'Nuevo ítem';
+  document.getElementById('inputNombre').value = '';
+  document.getElementById('inputCategoria').value = 'personal';
+  document.getElementById('inputFecha').value = todayStr();
+  document.getElementById('inputProyecto').value = '';
+  document.getElementById('typeToggle').style.display = 'flex';
+  document.getElementById('btnDelete').style.display = 'none';
+  document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('selected'));
+  setModalType('habito-diario');
+  document.getElementById('addModal').classList.add('open');
+  setTimeout(() => document.getElementById('inputNombre').focus(), 100);
+}
+
+function openEditModal(id) {
+  const item = state.items.find(i => i.id === id);
+  if (!item) return;
+  state.editingId = id;
+  document.getElementById('modalTitle').textContent = 'Editar ítem';
+  document.getElementById('typeToggle').style.display = 'none';
+  document.getElementById('btnDelete').style.display = 'block';
+  document.getElementById('inputNombre').value = item.nombre;
+  document.getElementById('inputCategoria').value = item.categoria || 'personal';
+  document.getElementById('inputFecha').value = item.fecha || todayStr();
+  document.getElementById('inputProyecto').value = item.proyecto || '';
+  state.modalType = item.type;
+  document.querySelectorAll('.day-btn').forEach(b => {
+    b.classList.toggle('selected', item.days && item.days.includes(parseInt(b.dataset.day)));
+  });
+  document.getElementById('groupDias').style.display = item.type === 'habito-semanal' ? 'block' : 'none';
+  document.getElementById('groupFecha').style.display = item.type === 'pendiente' ? 'block' : 'none';
+  document.getElementById('groupProyecto').style.display = item.type === 'pendiente' ? 'block' : 'none';
+  document.getElementById('addModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('addModal').classList.remove('open');
+  state.editingId = null;
+}
+
+function saveItem() {
+  const nombre = document.getElementById('inputNombre').value.trim();
+  if (!nombre) { document.getElementById('inputNombre').focus(); return; }
+
+  const selectedDays = [...document.querySelectorAll('.day-btn.selected')].map(b => parseInt(b.dataset.day));
+
+  const itemData = {
+    nombre,
+    type: state.editingId ? state.items.find(i=>i.id===state.editingId).type : state.modalType,
+    categoria: document.getElementById('inputCategoria').value,
+    fecha: document.getElementById('inputFecha').value || null,
+    proyecto: document.getElementById('inputProyecto').value.trim() || null,
+    days: selectedDays.length ? selectedDays : null,
+    done: false
+  };
+
+  if (state.editingId) {
+    const idx = state.items.findIndex(i => i.id === state.editingId);
+    if (idx >= 0) state.items[idx] = { ...state.items[idx], ...itemData };
+  } else {
+    itemData.id = 'item_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+    itemData.createdAt = todayStr();
+    state.items.push(itemData);
+  }
+
+  save();
+  closeModal();
+  render();
+}
+
+function deleteItem() {
+  if (!state.editingId) return;
+  if (!confirm('¿Eliminar este ítem y todo su historial?')) return;
+  const id = state.editingId;
+  state.items = state.items.filter(i => i.id !== id);
+  Object.keys(state.logs).forEach(k => { if (k.startsWith(id+'_')) delete state.logs[k]; });
+  save();
+  closeModal();
+  render();
+}
+
+function confirmDelete(id) {
+  if (!confirm('¿Eliminar este ítem?')) return;
+  state.items = state.items.filter(i => i.id !== id);
+  Object.keys(state.logs).forEach(k => { if (k.startsWith(id+'_')) delete state.logs[k]; });
+  save();
+  render();
+}
+
+function exportCSV() {
+  const rows = [['Fecha','Item','Tipo','Categoría','Estado']];
+  const today = new Date();
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const ds = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    state.items.forEach(item => {
+      const done = state.logs[item.id+'_'+ds] ? 'Hecho' : 'Pendiente';
+      rows.push([ds, item.nombre, item.type, item.categoria||'', done]);
+    });
+  }
+  const csv = rows.map(r => r.map(c => '"'+c+'"').join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,\uFEFF' + encodeURIComponent(csv);
+  a.download = 'habitos_' + todayStr() + '.csv';
+  a.click();
+}
+
+function initHeader() {
+  const d = new Date();
+  const dayName = DAYS_FULL[d.getDay()];
+  document.getElementById('headerDate').textContent = dayName.charAt(0).toUpperCase()+dayName.slice(1)+', '+d.getDate()+' de '+MONTHS_ES[d.getMonth()];
+}
+
+document.getElementById('addModal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+load();
+initHeader();
+render();
+</script>
+</body>
+</html>
