@@ -257,17 +257,21 @@ let state={items:[],logs:{},cats:[],currentView:'today',editingId:null,modalType
 
 function todayStr(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
 
+var _mem={};
+function lsGet(k){try{var v=localStorage.getItem(k);return v;}catch(e){return _mem[k]||null;}}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){_mem[k]=v;}}
+
 function load(){
-  try{state.items=JSON.parse(localStorage.getItem('mdia_items')||'[]');}catch(e){state.items=[];}
-  try{state.logs=JSON.parse(localStorage.getItem('mdia_logs')||'{}');}catch(e){state.logs={};}
-  try{const c=localStorage.getItem('mdia_cats');state.cats=c?JSON.parse(c):[...DEFAULT_CATS];}catch(e){state.cats=[...DEFAULT_CATS];}
-  const now=new Date();state.calYear=now.getFullYear();state.calMonth=now.getMonth();
+  try{var a=lsGet('mdia_items');state.items=a?JSON.parse(a):[];}catch(e){state.items=[];}
+  try{var b=lsGet('mdia_logs');state.logs=b?JSON.parse(b):{};}catch(e){state.logs={};}
+  try{var c=lsGet('mdia_cats');state.cats=c?JSON.parse(c):DEFAULT_CATS.slice();}catch(e){state.cats=DEFAULT_CATS.slice();}
+  var now=new Date();state.calYear=now.getFullYear();state.calMonth=now.getMonth();
 }
 
 function save(){
-  localStorage.setItem('mdia_items',JSON.stringify(state.items));
-  localStorage.setItem('mdia_logs',JSON.stringify(state.logs));
-  localStorage.setItem('mdia_cats',JSON.stringify(state.cats));
+  lsSet('mdia_items',JSON.stringify(state.items));
+  lsSet('mdia_logs',JSON.stringify(state.logs));
+  lsSet('mdia_cats',JSON.stringify(state.cats));
 }
 
 function getCat(id){return state.cats.find(c=>c.id===id)||{nombre:id,color:'#64748b'};}
@@ -326,5 +330,432 @@ function getItemsForDay(ds){
   const d=new Date(ds+'T00:00:00');const dow=d.getDay();
   return state.items.filter(item=>{
     if(item.type==='habito-diario')return true;
-    if(item.type===
-      
+    if(item.type==='habito-semanal')return item.days&&item.days.includes(dow);
+    if(item.type==='pendiente')return item.fecha===ds&&!item.done||isDoneOn(item,ds);
+    if(item.type==='cita')return item.fecha===ds;
+    return false;
+  });
+}
+
+function renderItem(item,showCat){
+  const done=isDoneToday(item);const streak=getStreak(item);
+  const due=(item.type==='pendiente')?getDueLabel(item.fecha):null;
+  const dow=new Date().getDay();const cat=getCat(item.categoria);
+  let meta='';
+  if(showCat)meta+=`<span class="badge" style="background:${cat.color}22;color:${cat.color};">${cat.nombre}</span>`;
+  if(item.type==='habito-semanal'&&item.days){
+    meta+=`<span style="display:inline-flex;gap:2px;">`;
+    item.days.sort().forEach(d=>{meta+=`<span class="day-dot${d===dow?' active-day':''}${done?' done-day':''}">${DAY_LETTERS[d]}</span>`;});
+    meta+=`</span>`;
+  }
+  if(streak>1)meta+=`<span class="badge streak-badge">🔥 ${streak}</span>`;
+  if(due)meta+=`<span class="badge ${due.cls}">${due.label}</span>`;
+  if(item.proyecto)meta+=`<span style="color:var(--text3);font-size:10px;">${item.proyecto}</span>`;
+  return`<div class="item${done?' done':''}${item.type==='pendiente'&&item.fecha&&item.fecha<todayStr()&&!done?' overdue':''}"
+    onclick="toggleDone('${item.id}')" oncontextmenu="event.preventDefault();openEditModal('${item.id}')">
+    <div class="check-circle"><span class="check-icon">✓</span></div>
+    <div class="item-info"><div class="item-name">${item.nombre}</div>${meta?`<div class="item-meta">${meta}</div>`:''}</div>
+    <div class="delete-btn" onclick="event.stopPropagation();confirmDelete('${item.id}')">✕</div>
+  </div>`;
+}
+
+function renderCitaCard(item){
+  const done=isDoneToday(item);const horaFmt=item.hora?formatHora(item.hora):'';
+  const fechaD=item.fecha?new Date(item.fecha+'T00:00:00'):null;
+  const fechaLabel=fechaD?fechaD.getDate()+' de '+MONTHS_ES[fechaD.getMonth()]:'';
+  return`<div class="cita-card${done?' done':''}" onclick="toggleDone('${item.id}')" oncontextmenu="event.preventDefault();openEditModal('${item.id}')">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+      <div>${horaFmt?`<div class="cita-hora">${horaFmt}</div>`:''}<div class="cita-nombre">${item.nombre}</div>
+      <div class="cita-meta">${fechaLabel?'📅 '+fechaLabel:''}${item.lugar?' · 📍 '+item.lugar:''}</div></div>
+      ${done?`<span style="color:var(--green);font-size:16px;">✓</span>`:''}
+    </div>
+    <div class="delete-btn" onclick="event.stopPropagation();confirmDelete('${item.id}')">✕</div>
+  </div>`;
+}
+
+function updateStats(items){
+  const done=items.filter(i=>isDoneToday(i)).length;
+  document.getElementById('statDone').textContent=done;
+  document.getElementById('statTotal').textContent=items.length;
+  document.getElementById('statStreak').textContent=getMaxStreak();
+  document.getElementById('progressFill').style.width=(items.length>0?Math.round((done/items.length)*100):0)+'%';
+}
+
+function renderToday(){
+  const diarios=state.items.filter(i=>i.type==='habito-diario');
+  const semanales=state.items.filter(i=>i.type==='habito-semanal'&&isItemActiveToday(i));
+  const pendientes=state.items.filter(i=>i.type==='pendiente'&&!i.done);
+  const citasHoy=state.items.filter(i=>i.type==='cita'&&i.fecha===todayStr());
+  const all=[...diarios,...semanales,...pendientes,...citasHoy];
+  updateStats(all);
+  let html='';
+  if(citasHoy.length){citasHoy.sort((a,b)=>(a.hora||'')>(b.hora||'')?1:-1);html+=`<div class="section-header"><span class="section-title">🗓 Citas de hoy</span><span class="section-count">${citasHoy.length}</span></div>`;citasHoy.forEach(i=>html+=renderCitaCard(i));}
+  if(diarios.length){const dc=diarios.filter(i=>isDoneToday(i)).length;html+=`<div class="section-header"><span class="section-title">Hábitos diarios</span><span class="section-count">${dc}/${diarios.length}</span></div>`;diarios.forEach(i=>html+=renderItem(i,false));}
+  if(semanales.length){const sc=semanales.filter(i=>isDoneToday(i)).length;html+=`<div class="section-header"><span class="section-title">Hábitos de hoy</span><span class="section-count">${sc}/${semanales.length}</span></div>`;semanales.forEach(i=>html+=renderItem(i,false));}
+  if(pendientes.length){const pc=pendientes.filter(i=>isDoneToday(i)).length;html+=`<div class="section-header"><span class="section-title">Pendientes</span><span class="section-count">${pc}/${pendientes.length}</span></div>`;pendientes.sort((a,b)=>(a.fecha||'9999')>(b.fecha||'9999')?1:-1).forEach(i=>html+=renderItem(i,true));}
+  if(!all.length)html=`<div class="empty"><div class="empty-icon">✅</div><div class="empty-text">Todo limpio. Agrega ítems con +</div></div>`;
+  document.getElementById('mainContent').innerHTML=html;
+}
+
+/* ── CALENDARIO ── */
+function renderCalendario(){
+  updateStats([]);
+  const year=state.calYear,month=state.calMonth;
+  const monthName=MONTHS_ES[month].charAt(0).toUpperCase()+MONTHS_ES[month].slice(1);
+  const firstDow=new Date(year,month,1).getDay();
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const today=todayStr();
+
+  let html=`<div class="cal-header">
+    <div class="cal-nav" onclick="calPrev()">‹</div>
+    <div class="cal-month">${monthName} ${year}</div>
+    <div class="cal-nav" onclick="calNext()">›</div>
+  </div>
+  <div class="cal-grid">`;
+
+  DAY_LETTERS.forEach(d=>html+=`<div class="cal-dow">${d}</div>`);
+
+  for(let i=0;i<firstDow;i++)html+=`<div class="cal-day empty"></div>`;
+
+  for(let day=1;day<=daysInMonth;day++){
+    const ds=year+'-'+String(month+1).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+    const items=getItemsForDay(ds);
+    const isToday=ds===today;
+    const isSelected=ds===state.calSelectedDay;
+    const hasDone=items.some(i=>isDoneOn(i,ds));
+    const hasPending=items.some(i=>!isDoneOn(i,ds));
+    const hasItems=items.length>0;
+
+    const cats=[...new Set(items.map(i=>i.categoria).filter(Boolean))].slice(0,3);
+    let dotsHtml='';
+    if(hasDone)dotsHtml+=`<div class="cal-dot" style="background:var(--green);"></div>`;
+    if(hasPending)dotsHtml+=`<div class="cal-dot" style="background:var(--amber);"></div>`;
+    cats.forEach(c=>{const cat=getCat(c);dotsHtml+=`<div class="cal-dot" style="background:${cat.color};"></div>`;});
+
+    html+=`<div class="cal-day${isToday?' today':''}${isSelected?' selected':''}${hasItems?' has-items':''}" onclick="selectCalDay('${ds}')">
+      <div class="cal-day-num">${day}</div>
+      ${hasItems?`<div class="cal-dots">${dotsHtml}</div>`:''}
+    </div>`;
+  }
+
+  html+=`</div>`;
+
+  if(state.calSelectedDay){
+    html+=renderCalDayDetailHTML(state.calSelectedDay);
+  }
+
+  document.getElementById('mainContent').innerHTML=html;
+}
+
+function renderCalDayDetailHTML(ds){
+  const items=getItemsForDay(ds);
+  if(!items.length)return`<div class="cal-day-detail"><div class="cal-day-detail-title">Sin actividades</div></div>`;
+  const d=new Date(ds+'T00:00:00');
+  const title=`${DAY_LETTERS[d.getDay()]} ${d.getDate()} de ${MONTHS_ES[d.getMonth()]}`;
+  let html=`<div class="cal-day-detail"><div class="cal-day-detail-title">${title}</div>`;
+  items.forEach(item=>{
+    const done=isDoneOn(item,ds);
+    const cat=getCat(item.categoria);
+    const typeLabels={'habito-diario':'Hábito','habito-semanal':'Hábito semanal',pendiente:'Pendiente',cita:'Cita'};const typeLabel=typeLabels[item.type]||item.type;
+    const hora=item.hora?formatHora(item.hora):'';
+    html+=`<div class="cal-item-row">
+      <div class="cal-item-dot" style="background:${cat.color};"></div>
+      <div class="cal-item-info">
+        <div class="cal-item-name">${item.nombre}</div>
+        <div class="cal-item-sub">${typeLabel}${hora?' · '+hora:''}${item.lugar?' · '+item.lugar:''}</div>
+      </div>
+      <div class="cal-item-check${done?' done':''}" onclick="toggleDoneOn('${item.id}','${ds}')">${done?'✓':''}</div>
+    </div>`;
+  });
+  html+=`</div>`;
+  return html;
+}
+
+function renderCalDayDetail(ds){
+  const existing=document.querySelector('.cal-day-detail');
+  if(existing)existing.outerHTML=renderCalDayDetailHTML(ds);
+  else document.getElementById('mainContent').innerHTML+=renderCalDayDetailHTML(ds);
+  renderCalendario();
+}
+
+function selectCalDay(ds){
+  state.calSelectedDay=(state.calSelectedDay===ds)?null:ds;
+  renderCalendario();
+}
+
+function calPrev(){
+  state.calMonth--;if(state.calMonth<0){state.calMonth=11;state.calYear--;}
+  state.calSelectedDay=null;renderCalendario();
+}
+function calNext(){
+  state.calMonth++;if(state.calMonth>11){state.calMonth=0;state.calYear++;}
+  state.calSelectedDay=null;renderCalendario();
+}
+
+function renderCitas(){
+  const hoy=todayStr();
+  const proximas=state.items.filter(i=>i.type==='cita'&&i.fecha>=hoy&&!i.done);
+  const pasadas=state.items.filter(i=>i.type==='cita'&&(i.fecha<hoy||i.done));
+  updateStats([]);
+  let html='';
+  if(proximas.length){proximas.sort((a,b)=>((a.fecha||'')+(a.hora||''))>((b.fecha||'')+(b.hora||''))?1:-1);html+=`<div class="section-header"><span class="section-title">Próximas citas</span><span class="section-count">${proximas.length}</span></div>`;proximas.forEach(i=>html+=renderCitaCard(i));}
+  if(pasadas.length){html+=`<div class="section-header"><span class="section-title">Pasadas / completadas</span><span class="section-count">${pasadas.length}</span></div>`;pasadas.sort((a,b)=>(a.fecha||'')>(b.fecha||'')?-1:1).forEach(i=>html+=renderCitaCard(i));}
+  if(!state.items.filter(i=>i.type==='cita').length)html=`<div class="empty"><div class="empty-icon">🗓</div><div class="empty-text">Sin citas. Agrega una con +</div></div>`;
+  document.getElementById('mainContent').innerHTML=html;
+}
+
+function renderPendientes(){
+  const activos=state.items.filter(i=>i.type==='pendiente'&&!i.done);
+  const completados=state.items.filter(i=>i.type==='pendiente'&&i.done);
+  updateStats([]);
+  let html='';
+  if(activos.length){html+=`<div class="section-header"><span class="section-title">Pendientes activos</span><span class="section-count">${activos.length}</span></div>`;activos.sort((a,b)=>(a.fecha||'9999')>(b.fecha||'9999')?1:-1).forEach(i=>html+=renderItem(i,true));}
+  if(completados.length){html+=`<div class="section-header"><span class="section-title">Completados</span><span class="section-count">${completados.length}</span></div>`;completados.forEach(i=>html+=renderItem(i,true));}
+  if(!state.items.filter(i=>i.type==='pendiente').length)html=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-text">Sin pendientes. Agrega uno con +</div></div>`;
+  document.getElementById('mainContent').innerHTML=html;
+}
+
+function renderHabitos(){
+  const diarios=state.items.filter(i=>i.type==='habito-diario');
+  const semanales=state.items.filter(i=>i.type==='habito-semanal');
+  updateStats([]);
+  let html='';
+  if(diarios.length){html+=`<div class="section-header"><span class="section-title">Hábitos diarios</span><span class="section-count">${diarios.length}</span></div>`;diarios.forEach(i=>html+=renderItem(i,true));}
+  if(semanales.length){html+=`<div class="section-header"><span class="section-title">Hábitos semanales</span><span class="section-count">${semanales.length}</span></div>`;semanales.forEach(i=>html+=renderItem(i,true));}
+  if(!diarios.length&&!semanales.length)html=`<div class="empty"><div class="empty-icon">🎯</div><div class="empty-text">Sin hábitos. Agrega uno con +</div></div>`;
+  document.getElementById('mainContent').innerHTML=html;
+}
+
+/* ── SETTINGS / CATEGORÍAS ── */
+function renderSettings(){
+  updateStats([]);
+  let html=`<div style="padding-top:16px;">
+  <div class="settings-section">
+    <div class="settings-title">Mis categorías</div>`;
+  state.cats.forEach(cat=>{
+    html+=`<div class="cat-list-item">
+      <div class="cat-color-swatch" style="background:${cat.color};"></div>
+      <div class="cat-name">${cat.nombre}</div>
+      <div class="cat-actions">
+        <div class="cat-action-btn" onclick="openEditCat('${cat.id}')">Editar</div>
+        <div class="cat-action-btn danger" onclick="deleteCat('${cat.id}')">✕</div>
+      </div>
+    </div>`;
+  });
+  html+=`<div class="add-cat-btn" onclick="openAddCat()">+ Agregar categoría</div>
+  </div>
+  <div class="settings-section" style="margin-top:24px;">
+    <div class="settings-title">Historial de hábitos</div>`;
+  const habits=state.items.filter(i=>i.type!=='pendiente'&&i.type!=='cita');
+  if(!habits.length){html+=`<div style="color:var(--text3);font-size:13px;">Sin hábitos registrados.</div>`;}
+  habits.forEach(item=>{
+    const streak=getStreak(item);const cat=getCat(item.categoria);
+    html+=`<div style="margin-bottom:10px;"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;"><span style="font-size:13px;color:var(--text);">${item.nombre}</span>${streak>0?`<span class="badge streak-badge">🔥 ${streak}</span>`:'<span style="font-size:11px;color:var(--text3);">sin racha</span>'}</div>`;
+    html+=`<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;">`;
+    const today=new Date();const startDow=new Date(today);startDow.setDate(today.getDate()-27-today.getDay());
+    for(let w=0;w<4;w++)for(let d=0;d<7;d++){
+      const dd=new Date(startDow);dd.setDate(startDow.getDate()+w*7+d);
+      const ds=dd.getFullYear()+'-'+String(dd.getMonth()+1).padStart(2,'0')+'-'+String(dd.getDate()).padStart(2,'0');
+      const isActive=item.type==='habito-diario'||(item.days&&item.days.includes(dd.getDay()));
+      const isFuture=ds>todayStr();const isDone=!!state.logs[item.id+'_'+ds];
+      const bg=isFuture?'transparent':(!isActive?'var(--surface2)':(isDone?'var(--green)':'#7f1d1d'));
+      const op=(!isActive||isFuture)?'0.3':'1';
+      html+=`<div style="aspect-ratio:1;border-radius:3px;background:${bg};opacity:${op};"></div>`;
+    }
+    html+=`</div></div>`;
+  });
+  html+=`</div></div>`;
+  document.getElementById('mainContent').innerHTML=html;
+}
+
+function render(){
+  switch(state.currentView){
+    case 'today':renderToday();break;
+    case 'calendario':renderCalendario();break;
+    case 'citas':renderCitas();break;
+    case 'pendientes':renderPendientes();break;
+    case 'habitos':renderHabitos();break;
+    case 'settings':renderSettings();break;
+  }
+}
+
+function showView(v){
+  state.currentView=v;
+  ['today','calendario','citas','pendientes','habitos'].forEach(t=>{
+    const el=document.getElementById('tab-'+t);if(el)el.classList.toggle('active',t===v);
+  });
+  render();
+}
+
+/* ── MODAL ITEM ── */
+function buildCatSelect(selectedId){
+  const sel=document.getElementById('inputCategoria');
+  sel.innerHTML='';
+  state.cats.forEach(c=>{
+    const opt=document.createElement('option');opt.value=c.id;opt.textContent=c.nombre;
+    if(c.id===selectedId)opt.selected=true;sel.appendChild(opt);
+  });
+}
+
+function setModalType(t){
+  state.modalType=t;
+  document.querySelectorAll('.type-btn').forEach(b=>b.classList.remove('active'));
+  const ids={'habito-diario':'tbHabitoDiario','habito-semanal':'tbHabitoSemanal',pendiente:'tbPendiente',cita:'tbCita'};
+  if(ids[t])document.getElementById(ids[t]).classList.add('active');
+  document.getElementById('groupDias').style.display=t==='habito-semanal'?'block':'none';
+  document.getElementById('groupFechaHora').style.display=(t==='pendiente'||t==='cita')?'flex':'none';
+  document.getElementById('groupHora').style.display=t==='cita'?'block':'none';
+  document.getElementById('groupLugar').style.display=t==='cita'?'block':'none';
+  document.getElementById('groupProyecto').style.display=t==='pendiente'?'block':'none';
+  document.getElementById('labelFecha').textContent=t==='pendiente'?'Fecha límite':'Fecha';
+}
+
+function toggleDay(el){el.classList.toggle('selected');}
+
+function openAddModal(){
+  state.editingId=null;
+  document.getElementById('modalTitle').textContent='Nuevo ítem';
+  document.getElementById('inputNombre').value='';
+  buildCatSelect(state.cats[0]?.id||'');
+  document.getElementById('inputFecha').value=todayStr();
+  document.getElementById('inputHora').value='';
+  document.getElementById('inputLugar').value='';
+  document.getElementById('inputProyecto').value='';
+  document.getElementById('typeToggle').style.display='grid';
+  document.getElementById('btnDelete').style.display='none';
+  document.querySelectorAll('.day-btn').forEach(b=>b.classList.remove('selected'));
+  setModalType('habito-diario');
+  document.getElementById('addModal').classList.add('open');
+  setTimeout(()=>document.getElementById('inputNombre').focus(),100);
+}
+
+function openEditModal(id){
+  const item=state.items.find(i=>i.id===id);if(!item)return;
+  state.editingId=id;
+  document.getElementById('modalTitle').textContent='Editar ítem';
+  document.getElementById('typeToggle').style.display='none';
+  document.getElementById('btnDelete').style.display='block';
+  document.getElementById('inputNombre').value=item.nombre;
+  buildCatSelect(item.categoria);
+  document.getElementById('inputFecha').value=item.fecha||todayStr();
+  document.getElementById('inputHora').value=item.hora||'';
+  document.getElementById('inputLugar').value=item.lugar||'';
+  document.getElementById('inputProyecto').value=item.proyecto||'';
+  state.modalType=item.type;
+  document.querySelectorAll('.day-btn').forEach(b=>b.classList.toggle('selected',item.days&&item.days.includes(parseInt(b.dataset.day))));
+  document.getElementById('groupDias').style.display=item.type==='habito-semanal'?'block':'none';
+  document.getElementById('groupFechaHora').style.display=(item.type==='pendiente'||item.type==='cita')?'flex':'none';
+  document.getElementById('groupHora').style.display=item.type==='cita'?'block':'none';
+  document.getElementById('groupLugar').style.display=item.type==='cita'?'block':'none';
+  document.getElementById('groupProyecto').style.display=item.type==='pendiente'?'block':'none';
+  document.getElementById('labelFecha').textContent=item.type==='pendiente'?'Fecha límite':'Fecha';
+  document.getElementById('addModal').classList.add('open');
+}
+
+function closeModal(){document.getElementById('addModal').classList.remove('open');state.editingId=null;}
+
+function saveItem(){
+  const nombre=document.getElementById('inputNombre').value.trim();
+  if(!nombre){document.getElementById('inputNombre').focus();return;}
+  const selectedDays=[...document.querySelectorAll('.day-btn.selected')].map(b=>parseInt(b.dataset.day));
+  const tipo=state.editingId?state.items.find(i=>i.id===state.editingId).type:state.modalType;
+  const itemData={nombre,type:tipo,categoria:document.getElementById('inputCategoria').value,
+    fecha:document.getElementById('inputFecha').value||null,hora:document.getElementById('inputHora').value||null,
+    lugar:document.getElementById('inputLugar').value.trim()||null,proyecto:document.getElementById('inputProyecto').value.trim()||null,
+    days:selectedDays.length?selectedDays:null,done:false};
+  if(state.editingId){const idx=state.items.findIndex(i=>i.id===state.editingId);if(idx>=0)state.items[idx]={...state.items[idx],...itemData};}
+  else{itemData.id='item_'+Date.now()+'_'+Math.random().toString(36).slice(2,6);itemData.createdAt=todayStr();state.items.push(itemData);}
+  save();closeModal();render();
+}
+
+function deleteItem(){
+  if(!state.editingId)return;if(!confirm('¿Eliminar este ítem?'))return;
+  const id=state.editingId;state.items=state.items.filter(i=>i.id!==id);
+  Object.keys(state.logs).forEach(k=>{if(k.startsWith(id+'_'))delete state.logs[k];});
+  save();closeModal();render();
+}
+
+function confirmDelete(id){
+  if(!confirm('¿Eliminar?'))return;state.items=state.items.filter(i=>i.id!==id);
+  Object.keys(state.logs).forEach(k=>{if(k.startsWith(id+'_'))delete state.logs[k];});
+  save();render();
+}
+
+/* ── MODAL CATEGORÍAS ── */
+let selectedColor=PALETTE[0];
+
+function buildColorPicker(current){
+  selectedColor=current||PALETTE[0];
+  const row=document.getElementById('colorPickerRow');row.innerHTML='';
+  PALETTE.forEach(c=>{
+    const d=document.createElement('div');d.className='color-option'+(c===selectedColor?' selected':'');
+    d.style.background=c;d.onclick=()=>{selectedColor=c;buildColorPicker(c);};row.appendChild(d);
+  });
+}
+
+function openAddCat(){
+  state.editingCatId=null;
+  document.getElementById('catModalTitle').textContent='Nueva categoría';
+  document.getElementById('catInputNombre').value='';
+  buildColorPicker(PALETTE[0]);
+  document.getElementById('catModal').classList.add('open');
+  setTimeout(()=>document.getElementById('catInputNombre').focus(),100);
+}
+
+function openEditCat(id){
+  const cat=state.cats.find(c=>c.id===id);if(!cat)return;
+  state.editingCatId=id;
+  document.getElementById('catModalTitle').textContent='Editar categoría';
+  document.getElementById('catInputNombre').value=cat.nombre;
+  buildColorPicker(cat.color);
+  document.getElementById('catModal').classList.add('open');
+}
+
+function closeCatModal(){document.getElementById('catModal').classList.remove('open');state.editingCatId=null;}
+
+function saveCat(){
+  const nombre=document.getElementById('catInputNombre').value.trim();
+  if(!nombre){document.getElementById('catInputNombre').focus();return;}
+  if(state.editingCatId){
+    const idx=state.cats.findIndex(c=>c.id===state.editingCatId);
+    if(idx>=0){state.cats[idx].nombre=nombre;state.cats[idx].color=selectedColor;}
+  }else{
+    const id='cat_'+Date.now();state.cats.push({id,nombre,color:selectedColor});
+  }
+  save();closeCatModal();render();
+}
+
+function deleteCat(id){
+  if(state.cats.length<=1){alert('Necesitas al menos una categoría.');return;}
+  if(!confirm('¿Eliminar esta categoría?'))return;
+  state.cats=state.cats.filter(c=>c.id!==id);save();render();
+}
+
+/* ── EXPORT ── */
+function exportCSV(){
+  const rows=[['Fecha','Item','Tipo','Categoría','Hora','Lugar','Estado']];
+  const today=new Date();
+  for(let i=29;i>=0;i--){
+    const d=new Date(today);d.setDate(d.getDate()-i);
+    const ds=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    state.items.forEach(item=>{
+      const cat=getCat(item.categoria);
+      rows.push([ds,item.nombre,item.type,cat.nombre,item.hora||'',item.lugar||'',state.logs[item.id+'_'+ds]?'Hecho':'Pendiente']);
+    });
+  }
+  const csv=rows.map(r=>r.map(c=>'"'+c+'"').join(',')).join('\n');
+  const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,\uFEFF'+encodeURIComponent(csv);
+  a.download='habitos_'+todayStr()+'.csv';a.click();
+}
+
+document.getElementById('addModal').addEventListener('click',function(e){if(e.target===this)closeModal();});
+document.getElementById('catModal').addEventListener('click',function(e){if(e.target===this)closeCatModal();});
+
+const dn=DAYS_FULL[new Date().getDay()];
+const nd=new Date();
+document.getElementById('headerDate').textContent=dn.charAt(0).toUpperCase()+dn.slice(1)+', '+nd.getDate()+' de '+MONTHS_ES[nd.getMonth()];
+
+load();render();
+</script>
+</body>
+</html>
